@@ -26,7 +26,7 @@ install_cleanup_trap
 sudo apt install -y python3-pip
 sudo apt install -y python3.11-venv
 
-sudo apt install -y python3-virtualenv python3-dev libopenjp2-7 python3-libgpiod curl libcurl4-openssl-dev libssl-dev liblmdb-dev libsodium-dev zlib1g-dev libjpeg-dev packagekit wireless-tools
+sudo apt install -y python3-virtualenv python3-dev libopenjp2-7 libopenjp2-7-dev python3-libgpiod curl libcurl4-openssl-dev libssl-dev liblmdb-dev libsodium-dev zlib1g-dev libjpeg-dev libpng-dev libtiff-dev libfreetype6-dev liblcms2-dev libwebp-dev tcl-dev tk-dev packagekit wireless-tools
 
 # Module only Variables
 MN_BUILD_PACKAGE_FILE="/tmp/mn_packages.lst"
@@ -47,6 +47,42 @@ pushd "/home/${BASE_USER}" &> /dev/null || exit 1
 echo_green "Clone moonraker repo ..."
 ## Step 2: clone moonraker repo
 gitclone MOONRAKER_REPO moonraker
+
+## Step 2b: Pre-create moonraker virtualenv and install Pillow from piwheels
+## (avoids building Pillow from source on armv7l where PyPI has no wheels)
+## NOTE: pip inside the armhf chroot on an aarch64 kernel reports platform as
+## linux_aarch64, so it ignores armv7l wheels from piwheels. We download and
+## install the wheel manually to bypass platform tagging.
+echo_green "Pre-creating moonraker virtualenv and pre-installing Pillow from piwheels ..."
+MN_REQ_FILE="/home/${BASE_USER}/moonraker/scripts/moonraker-requirements.txt"
+PILLOW_CONSTRAINT=""
+if [[ -f "${MN_REQ_FILE}" ]]; then
+    PILLOW_CONSTRAINT=$(grep '^pillow' "${MN_REQ_FILE}" | head -n 1 || true)
+fi
+if [[ -z "${PILLOW_CONSTRAINT}" ]]; then
+    PILLOW_CONSTRAINT="pillow>=9.5.0,<=12.1.0"
+fi
+
+# Extract max Pillow version from constraint (e.g. "pillow>=9.5.0, <=12.1.0" -> 12.1.0)
+# NOTE: piwheels does NOT have 12.1.0 for armv7l, so we use the latest
+# compatible version available (12.0.0) instead of parsing the constraint.
+PILLOW_VERSION="12.0.0"
+
+PY_TAG="cp311"
+PLATFORM_TAG="linux_armv7l"
+WHEEL_NAME="pillow-${PILLOW_VERSION}-${PY_TAG}-${PY_TAG}-${PLATFORM_TAG}.whl"
+WHEEL_URL="https://www.piwheels.org/simple/pillow/${WHEEL_NAME}"
+
+sudo -u "${BASE_USER}" virtualenv -p python3 "/home/${BASE_USER}/moonraker-env"
+sudo -u "${BASE_USER}" "/home/${BASE_USER}/moonraker-env/bin/pip" install --upgrade pip setuptools wheel
+
+mkdir -p /tmp/piwheels
+echo_green "Downloading precompiled Pillow wheel: ${WHEEL_NAME} ..."
+if ! curl -fsSL -o "/tmp/piwheels/${WHEEL_NAME}" "${WHEEL_URL}"; then
+    echo_red "Failed to download Pillow wheel from piwheels (${WHEEL_URL})"
+    exit 1
+fi
+sudo -u "${BASE_USER}" "/home/${BASE_USER}/moonraker-env/bin/pip" install "/tmp/piwheels/${WHEEL_NAME}"
 
 echo_green "grep PKGLIST from install moonraker ..."
 ## Step 3: grep PKGLIST from install-moonraker.sh for dependencies
