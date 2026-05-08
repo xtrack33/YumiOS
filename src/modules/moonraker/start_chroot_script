@@ -47,6 +47,7 @@ pushd "/home/${BASE_USER}" &> /dev/null || exit 1
 echo_green "Clone moonraker repo ..."
 ## Step 2: clone moonraker repo
 gitclone MOONRAKER_REPO moonraker
+chown -R "${BASE_USER}:${BASE_USER}" "/home/${BASE_USER}/moonraker"
 
 ## Step 2b: Pre-create moonraker virtualenv and install Pillow from piwheels
 ## (avoids building Pillow from source on armv7l where PyPI has no wheels)
@@ -73,6 +74,9 @@ PLATFORM_TAG="linux_armv7l"
 WHEEL_NAME="pillow-${PILLOW_VERSION}-${PY_TAG}-${PY_TAG}-${PLATFORM_TAG}.whl"
 WHEEL_URL="https://www.piwheels.org/simple/pillow/${WHEEL_NAME}"
 
+# Create TMPDIR with proper permissions before virtualenv
+sudo -u "${BASE_USER}" mkdir -p "/home/${BASE_USER}/tmp"
+
 sudo -u "${BASE_USER}" virtualenv -p python3 "/home/${BASE_USER}/moonraker-env"
 sudo -u "${BASE_USER}" "/home/${BASE_USER}/moonraker-env/bin/pip" install --upgrade pip setuptools wheel
 
@@ -83,6 +87,9 @@ if ! curl -fsSL -o "/tmp/piwheels/${WHEEL_NAME}" "${WHEEL_URL}"; then
     exit 1
 fi
 sudo -u "${BASE_USER}" "/home/${BASE_USER}/moonraker-env/bin/pip" install "/tmp/piwheels/${WHEEL_NAME}"
+
+# Create constraints file to pin Pillow version and prevent reinstall
+echo "pillow==${PILLOW_VERSION}" > /tmp/pillow-constraints.txt
 
 echo_green "grep PKGLIST from install moonraker ..."
 ## Step 3: grep PKGLIST from install-moonraker.sh for dependencies
@@ -115,7 +122,7 @@ pushd "/home/${BASE_USER}/moonraker" &> /dev/null || exit 1
 echo_green "Run moonraker install routine ..."
 ## Step 8: Run moonraker install routine
 echo_green "Launch moonraker install routine ..."
-sudo -u "${BASE_USER}" ./scripts/install-moonraker.sh -s -z -x
+sudo -u "${BASE_USER}" TMPDIR="/home/${BASE_USER}/tmp" PIP_CONSTRAINT="/tmp/pillow-constraints.txt" ./scripts/install-moonraker.sh -s -z -x
 
 
 echo_green "Install policykit rules ..."
