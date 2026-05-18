@@ -20,6 +20,7 @@ buildtest:
   # - armbian/orangepi3lts
   # - armbian/orangepi4lts
   - armbian/smartpad
+  - armbian/smartpad-trixie
   #- armbian/smartpi
   # Orange Pi OS based images
   # - orangepi/orangepi_zero2
@@ -37,6 +38,7 @@ release:
   #- armbian/orangepi3lts
   #- armbian/orangepi4lts
   - armbian/smartpad
+  - armbian/smartpad-trixie
   #- armbian/smartpi
   # Orange Pi OS based images
   #- orangepi/orangepi_zero2
